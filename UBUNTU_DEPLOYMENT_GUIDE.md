@@ -26,17 +26,17 @@ This guide will help you deploy the AI Homeopathy Intake System to AWS Ubuntu EC
 ssh -i your-key.pem ubuntu@your-instance-public-ip
 ```
 
-## Step 3: Quick Deployment (Recommended)
+## Step 3: Deploy the Application
 
-### Option A: Using the Automated Script
+### Option A: Using the Automated Script (Recommended)
 ```bash
-# Upload your files to the server first, then run:
+# Download and run the deployment script
+wget https://raw.githubusercontent.com/Ali4574/AI-Homeopathy-/main/deploy.sh
 chmod +x deploy.sh
 ./deploy.sh
 ```
 
 ### Option B: Manual Installation
-
 ```bash
 # Update system
 sudo apt update && sudo apt upgrade -y
@@ -45,63 +45,20 @@ sudo apt update && sudo apt upgrade -y
 curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
 sudo apt-get install -y nodejs
 
-# Verify installation
-node --version
-npm --version
-
-# Install PM2 globally
+# Install PM2
 sudo npm install -g pm2
-```
 
-## Step 4: Clone Your Repository
+# Clone repository
+git clone https://github.com/Ali4574/AI-Homeopathy-.git
+cd AI-Homeopathy-
 
-```bash
-# Clone your repository
-git clone https://github.com/your-username/your-repo-name.git
-cd your-repo-name
-```
-
-## Step 5: Set Up Environment Variables
-
-```bash
-# Create .env file manually
-nano .env
-```
-
-**Add your OpenAI API key to .env file:**
-```env
-# OpenAI API Configuration
-# Get your API key from: https://platform.openai.com/api-keys
-OPENAI_API_KEY=sk-your-actual-api-key-here
-
-# Server Configuration
-PORT=3000
-NODE_ENV=production
-```
-
-**Important:** The .env file is not included in the Git repository for security reasons. You must create it manually on the server.
-
-## Step 6: Install Dependencies and Test
-
-```bash
 # Install dependencies
 npm install
-
-# Test the application
-node server.js
 ```
 
-**Expected output:**
-```
-Server listening on http://localhost:3000
-Open your browser and go to: http://localhost:3000
-```
-
-## Step 7: Deploy with PM2 (Production)
+## Step 4: Start the Application
 
 ```bash
-# Stop the test server (Ctrl+C if running)
-
 # Start with PM2
 pm2 start server.js --name "ai-homeopathy"
 
@@ -113,7 +70,7 @@ pm2 save
 pm2 status
 ```
 
-## Step 8: Set Up Nginx (Optional but Recommended)
+## Step 5: Set Up Nginx (Optional)
 
 ```bash
 # Install Nginx
@@ -165,7 +122,7 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-## Step 9: Security Setup
+## Step 6: Security Setup
 
 ### Update Security Group
 - Only allow necessary ports (22, 80, 443, 3000)
@@ -180,7 +137,7 @@ sudo apt install certbot python3-certbot-nginx -y
 sudo certbot --nginx -d your-domain.com
 ```
 
-## Step 10: Access Your Application
+## Step 7: Access Your Application
 
 - **Direct**: http://your-ec2-public-ip:3000
 - **With Nginx**: http://your-ec2-public-ip (port 80)

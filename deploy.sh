@@ -26,24 +26,16 @@ else
     echo "✅ PM2 already installed"
 fi
 
+# Clone repository
+echo "📥 Cloning repository..."
+git clone https://github.com/Ali4574/AI-Homeopathy-.git
+cd AI-Homeopathy-
+
 # Install dependencies
 echo "📦 Installing project dependencies..."
 npm install
 
-# Check if .env file exists
-if [ ! -f .env ]; then
-    echo "⚠️  .env file not found!"
-    echo "📝 Please create .env file manually with your OpenAI API key:"
-    echo "   nano .env"
-    echo ""
-    echo "Example .env content:"
-    echo "OPENAI_API_KEY=your-openai-api-key-here"
-    echo "PORT=3000"
-    echo "NODE_ENV=production"
-    echo ""
-    echo "After creating .env file, run this script again."
-    exit 1
-fi
+
 
 # Start the application with PM2
 echo "🚀 Starting application with PM2..."
