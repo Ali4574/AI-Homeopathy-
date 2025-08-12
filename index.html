@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>AI Homeopathy Intake — Voice Prototype</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <style>
+      body {
+        font-family: Inter, Arial;
+        background: #f2f6fb;
+        margin: 0;
+        padding: 20px;
+        display: flex;
+        justify-content: center;
+      }
+      .app {
+        width: 720px;
+        max-width: 96vw;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 8px 30px rgba(20, 30, 60, 0.08);
+        overflow: hidden;
+      }
+      header {
+        padding: 18px 20px;
+        background: linear-gradient(90deg, #2b8df7, #6bb7ff);
+        color: white;
+      }
+      header h1 {
+        margin: 0;
+        font-size: 18px;
+      }
+      #chat {
+        height: 540px;
+        overflow: auto;
+        padding: 18px;
+      }
+      .bubble {
+        display: inline-block;
+        max-width: 78%;
+        margin: 8px 0;
+        padding: 12px 14px;
+        border-radius: 12px;
+      }
+      .bot {
+        background: #f1f5fb;
+        color: #0b2546;
+        border-bottom-left-radius: 4px;
+      }
+      .user {
+        background: #007bff;
+        color: white;
+        align-self: flex-end;
+        border-bottom-right-radius: 4px;
+      }
+      .row {
+        display: flex;
+        gap: 10px;
+        padding: 12px;
+        border-top: 1px solid #eee;
+        align-items: center;
+      }
+      .input {
+        flex: 1;
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: 1px solid #ddd;
+      }
+      button {
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: none;
+        background: #246bff;
+        color: white;
+        cursor: pointer;
+      }
+      .small {
+        font-size: 13px;
+        color: #6b7280;
+      }
+      .controls {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .mic {
+        background: #ff4d4f;
+      }
+      .status {
+        padding: 6px 10px;
+        border-radius: 6px;
+        background: #f8fafc;
+        font-size: 13px;
+        color: #334155;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app" role="application" aria-label="AI Homeopathy Intake">
+      <header>
+        <h1>AI Homeopathy Intake — Voice Prototype</h1>
+      </header>
+
+      <div id="chat"></div>
+
+      <div class="row">
+        <input
+          id="textInput"
+          class="input"
+          placeholder="Type your reply (or use 🎤)"
+        />
+        <div class="controls">
+          <button id="micBtn" title="Start/Stop listening">🎤 Start</button>
+          <button id="sendBtn">Send</button>
+        </div>
+      </div>
+      <div style="padding: 10px 18px">
+        <span class="small"
+          >Assistant will ask: name → age → city → symptoms. Speak or type your
+          answer. Audio uses your browser's speech APIs.</span
+        >
+      </div>
+    </div>
+
+    <script>
+      // CHANGE IF YOUR SERVER URL DIFFERS
+      const API_BASE = "/api/chat";
+
+      // conversation state: we'll store messages as {role, content}
+      let messages = [];
+      const chat = document.getElementById("chat");
+      const textInput = document.getElementById("textInput");
+      const sendBtn = document.getElementById("sendBtn");
+      const micBtn = document.getElementById("micBtn");
+
+      // Initialize assistant system prompt to drive session-based intake
+      const systemPrompt = `You are an empathetic, concise AI medical intake assistant specialized for homeopathic doctors.
+Start the session by greeting the patient and asking: "Please tell me your name, age, and city." 
+Then wait for the patient's answer. After each patient reply, ask the next appropriate question in this sequence:
+1) Collect name, age, city
+2) Ask for main symptom and its duration
+3) Ask about severity (1-10) and any red flags (chest pain, breathlessness, fainting)
+4) Ask about generalities (appetite, thirst, sleep) briefly
+5) End with a short summary of collected details.
+Be concise, ask one question at a time, do NOT provide medical advice beyond asking clarifying questions. If a red-flag symptom is present, mark it with [URGENT] and tell user to seek immediate care. Always return only plain text in your assistant messages.`;
+
+      // push system message
+      messages.push({ role: "system", content: systemPrompt });
+
+      // Utility to add message bubble
+      function addBubble(text, who = "bot") {
+        const b = document.createElement("div");
+        b.className = "bubble " + (who === "bot" ? "bot" : "user");
+        b.textContent = text;
+        const wrapper = document.createElement("div");
+        wrapper.style.display = "flex";
+        wrapper.style.justifyContent =
+          who === "bot" ? "flex-start" : "flex-end";
+        wrapper.appendChild(b);
+        chat.appendChild(wrapper);
+        chat.scrollTop = chat.scrollHeight;
+      }
+
+      // speak text via TTS
+      function speak(text) {
+        if (!("speechSynthesis" in window)) return;
+        // cancel ongoing
+        window.speechSynthesis.cancel();
+        const ut = new SpeechSynthesisUtterance(text);
+        ut.lang = "en-US";
+        ut.rate = 1.0;
+        ut.pitch = 1.0;
+        window.speechSynthesis.speak(ut);
+      }
+
+      // send messages to server
+      async function askAI() {
+        // send the messages array to server
+        try {
+          // show typing indicator
+          addBubble("…", "bot");
+          const response = await fetch(API_BASE, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ messages }),
+          });
+          // remove typing indicator (last bot bubble if '…')
+          const last = chat.lastElementChild;
+          if (last && last.querySelector(".bubble").textContent === "…") {
+            chat.removeChild(last);
+          }
+          if (!response.ok) {
+            const err = await response.text();
+            addBubble("Error: " + err, "bot");
+            return;
+          }
+          const data = await response.json();
+          const aiContent = data.choices?.[0]?.message?.content?.trim();
+          if (!aiContent) {
+            addBubble("Sorry — empty response from AI.", "bot");
+            return;
+          }
+          // push assistant message to history and UI
+          messages.push({ role: "assistant", content: aiContent });
+          addBubble(aiContent, "bot");
+          speak(aiContent);
+        } catch (err) {
+          console.error(err);
+          addBubble("Network error. Check server and API key.", "bot");
+        }
+      }
+
+      // send user's text to conversation
+      async function sendUserText(text) {
+        if (!text) return;
+        messages.push({ role: "user", content: text });
+        addBubble(text, "user");
+        // ask AI for next step
+        await askAI();
+      }
+
+      // initial start: let assistant say first greeting/question
+      (async function kickOff() {
+        // Ask the model to speak first (we send an empty user to prompt the assistant)
+        // But better: ask AI to produce the initial greeting now
+        await askAI();
+      })();
+
+      // event handlers
+      sendBtn.addEventListener("click", async () => {
+        const val = textInput.value.trim();
+        if (!val) return;
+        textInput.value = "";
+        await sendUserText(val);
+      });
+
+      textInput.addEventListener("keydown", async (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          sendBtn.click();
+        }
+      });
+
+      // Speech recognition (Web Speech API)
+      let recognition;
+      let listening = false;
+      function initRecognition() {
+        const SpeechRecognition =
+          window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+          alert(
+            "Speech Recognition not supported in this browser. Please use Chrome or Edge."
+          );
+          return;
+        }
+        recognition = new SpeechRecognition();
+        recognition.lang = "en-US";
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        recognition.onresult = async (event) => {
+          const transcript = event.results[0][0].transcript;
+          textInput.value = transcript;
+          // auto-send
+          await sendUserText(transcript);
+        };
+
+        recognition.onend = () => {
+          listening = false;
+          micBtn.textContent = "🎤 Start";
+        };
+
+        recognition.onerror = (e) => {
+          console.error("Recognition error:", e);
+          listening = false;
+          micBtn.textContent = "🎤 Start";
+        };
+      }
+
+      micBtn.addEventListener("click", () => {
+        if (!recognition) initRecognition();
+        if (!recognition) return;
+        if (!listening) {
+          recognition.start();
+          listening = true;
+          micBtn.textContent = "🛑 Stop";
+        } else {
+          recognition.stop();
+          listening = false;
+          micBtn.textContent = "🎤 Start";
+        }
+      });
+
+      // For safety, stop speechSynthesis on page leave
+      window.addEventListener("beforeunload", () => {
+        if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+      });
+    </script>
+  </body>
+</html>
